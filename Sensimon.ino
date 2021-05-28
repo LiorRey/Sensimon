@@ -22,7 +22,6 @@ void setup()
 
 void loop()
 {
-    Serial.println("*");
     Serial.println(random(1,7));
 
     /*
