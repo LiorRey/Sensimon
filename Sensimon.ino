@@ -12,9 +12,13 @@ typedef struct
 // CONSTANTS
 #define numOfPossibleCommands 7
 #define commandShowDuration 1
-#define delayBetweenCommands 0.5
+#define delayBetweenCommands 0.25
+
 #define lightSensorCorrectRange 50
-#define flashLightThreshold 900
+#define flashLightThreshold 800
+
+#define blowSensorCorrectRange 20
+#define blowSensorThreshold 100
 
 // ENUM
 enum StateEnum
@@ -32,8 +36,8 @@ Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
     {
         {"RED", 0, 0},                   // Hot
-        {"GREEN", 0, 0},                 // Blow
         {"BLUE", 0, 0},                  // Cold
+        {"GREEN", 400, 0x00FF00},        // Blow
         {"YELLOW", 600, 0xFFFF00},       // Light
         {"PURPLE_RIGHT", 800, 0xFF8080}, // Right button
         {"PURPLE_LEFT", 1200, 0xFF8080}, // Left button
@@ -42,21 +46,22 @@ Command possibleCommands[numOfPossibleCommands] =
 
 int currNumOfCommands = 0;
 int currPlayerSequenceIdx = 0;
-int LightSensorValueOnInit;
+int LightSensorValueOnInit, blowSensorValueOnInit;
 
 void setup()
 {
     Serial.begin(9600);
     CircuitPlayground.begin();
-    randomSeed(analogRead(0));
-
+    randomSeed(CircuitPlayground.lightSensor());
     LightSensorValueOnInit = CircuitPlayground.lightSensor();
+    blowSensorValueOnInit = CircuitPlayground.mic.soundPressureLevel(10);
 }
 
 void loop()
 {
+
     // delay(500);
-    // Serial.println(CircuitPlayground.lightSensor());
+    // Serial.println(CircuitPlayground.mic.soundPressureLevel(10));
     switch (state)
     {
     case INIT_BOARD:
@@ -76,14 +81,15 @@ void loop()
         break;
 
     case GAME_OVER:
+        state = gameOverState();
         break;
     }
 }
 
 int initBoardState()
 {
-    Serial.print("INIT_BOARD");
-    gameCommands[currNumOfCommands] = possibleCommands[random(3, 6)];
+    Serial.print("INIT_BOARD: adding next command");
+    gameCommands[currNumOfCommands] = possibleCommands[random(2, 6)];
     currNumOfCommands++;
     // gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
     return BOARD_COMMANDS;
@@ -91,16 +97,13 @@ int initBoardState()
 
 int boardCommandsState()
 {
-
-    Serial.println("commands: ");
+    Serial.println("BOARD_COMMANDS: showing sequence");
 
     for (int i = 0; i < currNumOfCommands; i++)
     {
-        Serial.println(gameCommands[i].type);
         showCommand(gameCommands[i]);
+        delay(delayBetweenCommands * 1000);
     }
-
-    Serial.println();
 
     return PLAYER_TURN;
 }
@@ -129,7 +132,7 @@ void showCommand(Command command)
 
     // make sound
     CircuitPlayground.playTone(command.soundFreq, commandShowDuration * 1000);
-    delay(delayBetweenCommands * 1000);
+
     CircuitPlayground.clearPixels();
 }
 
@@ -149,25 +152,30 @@ int playerTurnState()
     expectedCommand = gameCommands[currPlayerSequenceIdx];
     if (CircuitPlayground.leftButton())
     {
-        nextState = checkNextPlayerState(expectedCommand, "PURPLE_LEFT");
+        nextState = validateDetectedCommandType("PURPLE_LEFT", expectedCommand);
     }
 
     else if (CircuitPlayground.rightButton())
     {
-        nextState = checkNextPlayerState(expectedCommand, "PURPLE_RIGHT");
+        nextState = validateDetectedCommandType("PURPLE_RIGHT", expectedCommand);
     }
 
     else if (CircuitPlayground.lightSensor() > flashLightThreshold)
     {
-        nextState = checkNextPlayerState(expectedCommand, "YELLOW");
+        nextState = validateDetectedCommandType("YELLOW", expectedCommand);
+    }
+
+    else if (CircuitPlayground.mic.soundPressureLevel(10) > blowSensorThreshold)
+    {
+        nextState = validateDetectedCommandType("GREEN", expectedCommand);
     }
 
     return nextState;
 }
 
-int checkNextPlayerState(Command expectedCommand, char *name)
+int validateDetectedCommandType(char *typeOfCommandDetected, Command expectedCommand)
 {
-    if (strcmp(expectedCommand.type, name) == 0)
+    if (strcmp(expectedCommand.type, typeOfCommandDetected) == 0)
     {
         currPlayerSequenceIdx++;
         showCommand(expectedCommand);
@@ -181,7 +189,7 @@ int checkNextPlayerState(Command expectedCommand, char *name)
 
 int sensorResetState()
 {
-    delay(500);
+    delay(100);
 
     bool buttonsReleased = !CircuitPlayground.leftButton() && !CircuitPlayground.rightButton();
 
@@ -189,7 +197,11 @@ int sensorResetState()
     bool lightIsInCorrectRange = lightSensorValue <= LightSensorValueOnInit + lightSensorCorrectRange &&
                                  lightSensorValue >= LightSensorValueOnInit - lightSensorCorrectRange;
 
-    if (buttonsReleased && lightIsInCorrectRange)
+    int blowSensorValue = CircuitPlayground.mic.soundPressureLevel(10);
+    bool blowIsInCorrectRange = blowSensorValue <= blowSensorValueOnInit + blowSensorCorrectRange &&
+                                blowSensorValue >= blowSensorValueOnInit - blowSensorCorrectRange;
+
+    if (buttonsReleased && lightIsInCorrectRange && blowIsInCorrectRange)
     {
         return PLAYER_TURN;
     }
@@ -197,4 +209,15 @@ int sensorResetState()
     {
         return SENSOR_RESET;
     }
+}
+
+int gameOverState()
+{
+    CircuitPlayground.clearPixels();
+    for (int i = 0; i < 10; i++)
+    {
+        CircuitPlayground.setPixelColor(i, 0xFF0000);
+    }
+
+    return GAME_OVER;
 }
