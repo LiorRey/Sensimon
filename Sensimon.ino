@@ -10,43 +10,61 @@ typedef struct
 } Command;
 
 // CONSTANTS
-#define numOfPossibleCommands 7
+#define numOfPossibleCommands 5
 #define commandShowDuration 1
 #define delayBetweenCommands 0.25
 
 #define lightSensorCorrectRange 50
-#define flashLightThreshold 800
+#define flashLightThreshold 700
 
 #define blowSensorCorrectRange 20
 #define blowSensorThreshold 100
 
+#define temperatureSensorCorrectRange 4
+#define temperatureThresholdOffset 8
+
+// For Simon Animation state :)
+#define NOTE_C4  262
+#define NOTE_E4  330
+#define NOTE_G4  392
+#define NOTE_C5  523
+
 // ENUM
 enum StateEnum
 {
+    SIMON_ANIMATION,
     INIT_BOARD,
     BOARD_COMMANDS,
     PLAYER_TURN,
-    SENSOR_RESET,
-    GAME_OVER
+    SENSOR_RESET
 };
 
 // GLOBALS
-int state = INIT_BOARD;
+int state = SIMON_ANIMATION;
 Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
-    {
-        {"RED", 0, 0},                   // Hot
-        {"BLUE", 0, 0},                  // Cold
+{
+        {"BLUE", 1000, 0x0000FF},        // Cold
         {"GREEN", 400, 0x00FF00},        // Blow
         {"YELLOW", 600, 0xFFFF00},       // Light
         {"PURPLE_RIGHT", 800, 0xFF8080}, // Right button
         {"PURPLE_LEFT", 1200, 0xFF8080}, // Left button
-        {"PINK", 0, 0}                   // High note
 };
 
 int currNumOfCommands = 0;
 int currPlayerSequenceIdx = 0;
-int LightSensorValueOnInit, blowSensorValueOnInit;
+int LightSensorValueOnInit, blowSensorValueOnInit, temperatureSensorValueOnInit;
+int temperatureThreshold;
+
+// For Simon Animation state :)
+int NOTES[] = { NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5 };
+int led_indices[][2] {
+  {0, 1},
+  {3, 4},
+  {5, 6},
+  {8, 9}
+};
+int gameColors[] = {0, 50, 100, 150};
 
 void setup()
 {
@@ -55,13 +73,13 @@ void setup()
     randomSeed(CircuitPlayground.lightSensor());
     LightSensorValueOnInit = CircuitPlayground.lightSensor();
     blowSensorValueOnInit = CircuitPlayground.mic.soundPressureLevel(10);
+    temperatureSensorValueOnInit = CircuitPlayground.temperatureF();
+    temperatureThreshold = temperatureSensorValueOnInit - temperatureThresholdOffset;
 }
 
 void loop()
 {
-
-    // delay(500);
-    // Serial.println(CircuitPlayground.mic.soundPressureLevel(10));
+    Serial.println(CircuitPlayground.temperatureF());
     switch (state)
     {
     case INIT_BOARD:
@@ -80,8 +98,8 @@ void loop()
         state = sensorResetState();
         break;
 
-    case GAME_OVER:
-        state = gameOverState();
+    case SIMON_ANIMATION:
+        state = simonAnimationState();
         break;
     }
 }
@@ -89,16 +107,15 @@ void loop()
 int initBoardState()
 {
     Serial.print("INIT_BOARD: adding next command");
-    gameCommands[currNumOfCommands] = possibleCommands[random(2, 6)];
+    gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
     currNumOfCommands++;
-    // gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
+
     return BOARD_COMMANDS;
 }
 
 int boardCommandsState()
 {
     Serial.println("BOARD_COMMANDS: showing sequence");
-
     for (int i = 0; i < currNumOfCommands; i++)
     {
         showCommand(gameCommands[i]);
@@ -170,6 +187,11 @@ int playerTurnState()
         nextState = validateDetectedCommandType("GREEN", expectedCommand);
     }
 
+    else if (CircuitPlayground.temperatureF() < temperatureThreshold)
+    {
+        nextState = validateDetectedCommandType("BLUE", expectedCommand);
+    }
+
     return nextState;
 }
 
@@ -183,7 +205,7 @@ int validateDetectedCommandType(char *typeOfCommandDetected, Command expectedCom
     }
     else
     {
-        return GAME_OVER;
+        return SIMON_ANIMATION;
     }
 }
 
@@ -201,7 +223,11 @@ int sensorResetState()
     bool blowIsInCorrectRange = blowSensorValue <= blowSensorValueOnInit + blowSensorCorrectRange &&
                                 blowSensorValue >= blowSensorValueOnInit - blowSensorCorrectRange;
 
-    if (buttonsReleased && lightIsInCorrectRange && blowIsInCorrectRange)
+    int temperatureSensorValue = CircuitPlayground.temperatureF();
+    bool temperatureIsInCorrectRange = temperatureSensorValue <= temperatureSensorValueOnInit + temperatureSensorCorrectRange &&
+                                 temperatureSensorValue >= temperatureSensorValueOnInit - temperatureSensorCorrectRange;
+
+    if (buttonsReleased && lightIsInCorrectRange && blowIsInCorrectRange && temperatureIsInCorrectRange)
     {
         return PLAYER_TURN;
     }
@@ -211,13 +237,35 @@ int sensorResetState()
     }
 }
 
-int gameOverState()
+int simonAnimationState()
 {
     CircuitPlayground.clearPixels();
-    for (int i = 0; i < 10; i++)
+    Serial.println("Condolences");
+    for (int i = 0; i < 10; ++i)
     {
-        CircuitPlayground.setPixelColor(i, 0xFF0000);
+        for (int j = 3; j >= 0; --j)
+        {
+            for (int l = 0; l < 2; ++l)
+            {
+                CircuitPlayground.setPixelColor(led_indices[j][l], CircuitPlayground.colorWheel(gameColors[j]));
+            }
+            
+            CircuitPlayground.playTone(NOTES[j], (10 - i) * 10, false);
+            for (int l = 0; l < 2; ++l)
+            {
+                CircuitPlayground.setPixelColor(led_indices[j][l], 0);
+            }
+        }
     }
 
-    return GAME_OVER;
+    delay(1000);
+    resetGameParameters();
+
+    return INIT_BOARD;
+}
+
+void resetGameParameters()
+{
+    currNumOfCommands = 0;
+    currPlayerSequenceIdx = 0;
 }
