@@ -4,7 +4,7 @@
 
 typedef struct
 {
-    char* type;
+    char *type;
     int soundFreq;
     int lightColor;
 } Command;
@@ -33,12 +33,12 @@ Command possibleCommands[numOfPossibleCommands] =
         {"GREEN", 0, 0},        // Blow
         {"BLUE", 0, 0},         // Cold
         {"YELLOW", 0, 0},       // Light
-        {"ORANGE_RIGHT", 0, 0}, // Right button
-        {"ORANGE_LEFT", 0, 0},  // Left button
+        {"ORANGE_RIGHT", 800, 0xFF8000}, // Right button
+        {"ORANGE_LEFT", 1200, 0xFF8000},  // Left button
         {"PINK", 0, 0}          // High note
-    };
+};
 
-int currNumOfCommands = -1;
+int currNumOfCommands = 0;
 int currPlayerSequenceIdx = 0;
 
 void setup()
@@ -64,6 +64,7 @@ void loop()
         break;
 
     case SENSOR_RESET:
+        state = sensorResetState();
         break;
 
     case GAME_OVER:
@@ -73,25 +74,25 @@ void loop()
 
 int initBoardState()
 {
-    Serial.println("");
+    gameCommands[currNumOfCommands] = possibleCommands[random(4, 6)];
     currNumOfCommands++;
-    gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
+    // gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
     return BOARD_COMMANDS;
 }
 
 int boardCommandsState()
 {
-    Command testCommands[] = 
-    {
-        {"RED", 700, 0xFF0000},
-        {"GREEN", 1000, 0x00FF00},
-        {"YELLOW", 1200, 0xFFFF00},
-    };
+    // Command testCommands[] =
+    //     {
+    //         {"ORANGE_LEFT", 700, 0xFF0000},
+    //         {"GREEN", 1000, 0x00FF00},
+    //         {"YELLOW", 1200, 0xFFFF00},
+    //     };
 
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < currNumOfCommands; i++)
     {
-        showCommand(testCommands[i]);
-        // showCommand(gameCommands[i]);
+        // showCommand(testCommands[i]);
+        showCommand(gameCommands[i]);
     }
 
     return PLAYER_TURN;
@@ -99,10 +100,24 @@ int boardCommandsState()
 
 void showCommand(Command command)
 {
-    // show lights
-    for (int i=0; i<10; i++)
+    bool showRightLights = true;
+    bool showLeftLights = true;
+    if (command.type == "ORANGE_LEFT")
     {
-        CircuitPlayground.setPixelColor(i, command.lightColor);
+        showRightLights = false;
+    }
+    else if (command.type == "ORANGE_RIGHT")
+    {
+        showLeftLights = false;
+    }
+
+    // show lights
+    for (int i = 0; i < 10; i++)
+    {
+        if (i <= 4 && showLeftLights || i > 4 && showRightLights)
+        {
+            CircuitPlayground.setPixelColor(i, command.lightColor);
+        }
     }
 
     // make sound
@@ -129,12 +144,41 @@ int playerTurnState()
         if (expectedCommand.type == "ORANGE_LEFT")
         {
             currPlayerSequenceIdx++;
-            
-            return PLAYER_TURN;
+            return SENSOR_RESET;
         }
         else
         {
             return GAME_OVER;
         }
+    }
+
+    else if (CircuitPlayground.rightButton())
+    {
+        if (expectedCommand.type == "ORANGE_RIGHT")
+        {
+            currPlayerSequenceIdx++;
+            return SENSOR_RESET;
+        }
+        else
+        {
+            return GAME_OVER;
+        }
+    }
+
+    else
+    {
+        return PLAYER_TURN;
+    }
+}
+
+int sensorResetState()
+{
+    if (!CircuitPlayground.leftButton() && !CircuitPlayground.rightButton())
+    {
+        return PLAYER_TURN;
+    }
+    else
+    {
+        return SENSOR_RESET;
     }
 }
