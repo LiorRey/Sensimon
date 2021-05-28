@@ -4,14 +4,15 @@
 
 typedef struct
 {
-    char *type;
+    char* type;
     int soundFreq;
     int lightColor;
 } Command;
 
 // CONSTANTS
 #define numOfPossibleCommands 7
-#define commandShowDuration 2
+#define commandShowDuration 1
+#define delayBetweenCommands 0.5
 
 // ENUM
 enum StateEnum
@@ -22,24 +23,23 @@ enum StateEnum
     SENSOR_RESET,
     GAME_OVER
 };
-int state = INIT_BOARD;
 
 // GLOBALS
+int state = INIT_BOARD;
 Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
     {
-        {"RED", 0, 0},
-        {"GREEN", 0, 0},
-        {"BLUE", 0, 0},
-        {"YELLOW", 0, 0},
-        {"ORANGE_RIGHT", 0, 0},
-        {"ORANGE_LEFT", 0, 0},
-        {"PINK", 0, 0}
+        {"RED", 0, 0},          // Hot
+        {"GREEN", 0, 0},        // Blow
+        {"BLUE", 0, 0},         // Cold
+        {"YELLOW", 0, 0},       // Light
+        {"ORANGE_RIGHT", 0, 0}, // Right button
+        {"ORANGE_LEFT", 0, 0},  // Left button
+        {"PINK", 0, 0}          // High note
     };
 
-bool isPlayerTurnState = false;
 int currNumOfCommands = -1;
-long randCommand;
+int currPlayerSequenceIdx = 0;
 
 void setup()
 {
@@ -60,6 +60,7 @@ void loop()
         break;
 
     case PLAYER_TURN:
+        state = playerTurnState();
         break;
 
     case SENSOR_RESET:
@@ -92,22 +93,48 @@ int boardCommandsState()
         showCommand(testCommands[i]);
         // showCommand(gameCommands[i]);
     }
+
+    return PLAYER_TURN;
 }
 
 void showCommand(Command command)
 {
-    // make sound
-    CircuitPlayground.playTone(command.soundFreq, commandShowDuration * 1000);
-    
     // show lights
     for (int i=0; i<10; i++)
     {
         CircuitPlayground.setPixelColor(i, command.lightColor);
     }
-    delay(commandShowDuration * 1000);
+
+    // make sound
+    CircuitPlayground.playTone(command.soundFreq, commandShowDuration * 1000);
+    delay(delayBetweenCommands * 1000);
     CircuitPlayground.clearPixels();
 }
 
 int playerTurnState()
 {
+    Command expectedCommand;
+
+    if (currPlayerSequenceIdx == currNumOfCommands)
+    {
+        currPlayerSequenceIdx = 0;
+
+        return INIT_BOARD;
+    }
+
+    expectedCommand = gameCommands[currPlayerSequenceIdx];
+
+    if (CircuitPlayground.leftButton())
+    {
+        if (expectedCommand.type == "ORANGE_LEFT")
+        {
+            currPlayerSequenceIdx++;
+            
+            return PLAYER_TURN;
+        }
+        else
+        {
+            return GAME_OVER;
+        }
+    }
 }
