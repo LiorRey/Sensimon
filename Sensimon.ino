@@ -2,62 +2,112 @@
 #include <Wire.h>
 #include <SPI.h>
 
+typedef struct
+{
+    char *type;
+    int soundFreq;
+    int lightColor;
+} Command;
+
+// CONSTANTS
+#define numOfPossibleCommands 7
+#define commandShowDuration 2
+
 // ENUM
-enum StateEnum {INIT_BOARD, BOARD_COMMANDS, PLAYER_TURN, SENSOR_RESET, GAME_OVER};
-uint8_t state = INIT_BOARD;
-enum ColorEnum {RED = 1, GREEN, BLUE, YELLOW, ORANGE_RIGHT, ORANGE_LEFT, PINK};
+enum StateEnum
+{
+    INIT_BOARD,
+    BOARD_COMMANDS,
+    PLAYER_TURN,
+    SENSOR_RESET,
+    GAME_OVER
+};
+int state = INIT_BOARD;
 
 // GLOBALS
+Command gameCommands[84] = {};
+Command possibleCommands[numOfPossibleCommands] =
+    {
+        {"RED", 0, 0},
+        {"GREEN", 0, 0},
+        {"BLUE", 0, 0},
+        {"YELLOW", 0, 0},
+        {"ORANGE_RIGHT", 0, 0},
+        {"ORANGE_LEFT", 0, 0},
+        {"PINK", 0, 0}
+    };
+
 bool isPlayerTurnState = false;
-int commands[84] = {}; // 0 value - end of commands
-int currNumOfCommands = 0;
-int commandColors[] = {RED, GREEN, BLUE, YELLOW, ORANGE_RIGHT, ORANGE_LEFT, PINK};
+int currNumOfCommands = -1;
 long randCommand;
 
 void setup()
 {
-  Serial.begin(9600);
-  CircuitPlayground.begin();
+    Serial.begin(9600);
+    CircuitPlayground.begin();
 }
 
 void loop()
 {
-    Serial.println("*");
-    Serial.println(random(1,7));
-
-    /*
     switch (state)
     {
-        case INIT_BOARD:
-            initBoard();
-        break;
-        
-        case BOARD_COMMANDS:
-        break;
-        
-        case PLAYER_TURN:
-        break;
-        
-        case SENSOR_RESET:
+    case INIT_BOARD:
+        state = initBoardState();
         break;
 
-        case GAME_OVER:
+    case BOARD_COMMANDS:
+        state = boardCommandsState();
+        break;
+
+    case PLAYER_TURN:
+        break;
+
+    case SENSOR_RESET:
+        break;
+
+    case GAME_OVER:
         break;
     }
-    */
 }
 
-void initBoard()
+int initBoardState()
 {
-    currNumOfCommands++;    
+    Serial.println("");
+    currNumOfCommands++;
+    gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
+    return BOARD_COMMANDS;
 }
 
-void boardTurnState()
+int boardCommandsState()
 {
+    Command testCommands[] = 
+    {
+        {"RED", 700, 0xFF0000},
+        {"GREEN", 1000, 0x00FF00},
+        {"YELLOW", 1200, 0xFFFF00},
+    };
 
+    for (int i = 0; i < 3; i++)
+    {
+        showCommand(testCommands[i]);
+        // showCommand(gameCommands[i]);
+    }
 }
 
-void playerTurnState()
+void showCommand(Command command)
 {
+    // make sound
+    CircuitPlayground.playTone(command.soundFreq, commandShowDuration * 1000);
+    
+    // show lights
+    for (int i=0; i<10; i++)
+    {
+        CircuitPlayground.setPixelColor(i, command.lightColor);
+    }
+    delay(commandShowDuration * 1000);
+    CircuitPlayground.clearPixels();
+}
 
+int playerTurnState()
+{
 }
