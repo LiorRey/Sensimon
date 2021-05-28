@@ -29,13 +29,13 @@ int state = INIT_BOARD;
 Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
     {
-        {"RED", 0, 0},          // Hot
-        {"GREEN", 0, 0},        // Blow
-        {"BLUE", 0, 0},         // Cold
-        {"YELLOW", 0, 0},       // Light
+        {"RED", 0, 0},                   // Hot
+        {"GREEN", 0, 0},                 // Blow
+        {"BLUE", 0, 0},                  // Cold
+        {"YELLOW", 0, 0},                // Light
         {"ORANGE_RIGHT", 800, 0xFF8000}, // Right button
-        {"ORANGE_LEFT", 1200, 0xFF8000},  // Left button
-        {"PINK", 0, 0}          // High note
+        {"ORANGE_LEFT", 1200, 0xFF8000}, // Left button
+        {"PINK", 0, 0}                   // High note
 };
 
 int currNumOfCommands = 0;
