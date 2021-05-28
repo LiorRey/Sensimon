@@ -13,6 +13,8 @@ typedef struct
 #define numOfPossibleCommands 7
 #define commandShowDuration 1
 #define delayBetweenCommands 0.5
+#define lightSensorCorrectRange 50
+#define flashLightThreshold 900
 
 // ENUM
 enum StateEnum
@@ -29,27 +31,32 @@ int state = INIT_BOARD;
 Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
     {
-        {"RED", 0, 0},          // Hot
-        {"GREEN", 0, 0},        // Blow
-        {"BLUE", 0, 0},         // Cold
-        {"YELLOW", 0, 0},       // Light
-        {"ORANGE_RIGHT", 800, 0xFF8000}, // Right button
-        {"ORANGE_LEFT", 1200, 0xFF8000},  // Left button
-        {"PINK", 0, 0}          // High note
+        {"RED", 0, 0},                   // Hot
+        {"GREEN", 0, 0},                 // Blow
+        {"BLUE", 0, 0},                  // Cold
+        {"YELLOW", 600, 0xFFFF00},       // Light
+        {"PURPLE_RIGHT", 800, 0xFF8080}, // Right button
+        {"PURPLE_LEFT", 1200, 0xFF8080}, // Left button
+        {"PINK", 0, 0}                   // High note
 };
 
 int currNumOfCommands = 0;
 int currPlayerSequenceIdx = 0;
+int LightSensorValueOnInit;
 
 void setup()
 {
     Serial.begin(9600);
     CircuitPlayground.begin();
     randomSeed(analogRead(0));
+
+    LightSensorValueOnInit = CircuitPlayground.lightSensor();
 }
 
 void loop()
 {
+    // delay(500);
+    // Serial.println(CircuitPlayground.lightSensor());
     switch (state)
     {
     case INIT_BOARD:
@@ -76,7 +83,7 @@ void loop()
 int initBoardState()
 {
     Serial.print("INIT_BOARD");
-    gameCommands[currNumOfCommands] = possibleCommands[random(4, 6)];
+    gameCommands[currNumOfCommands] = possibleCommands[random(3, 6)];
     currNumOfCommands++;
     // gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
     return BOARD_COMMANDS;
@@ -102,11 +109,11 @@ void showCommand(Command command)
 {
     bool showRightLights = true;
     bool showLeftLights = true;
-    if (command.type == "ORANGE_LEFT")
+    if (command.type == "PURPLE_LEFT")
     {
         showRightLights = false;
     }
-    else if (command.type == "ORANGE_RIGHT")
+    else if (command.type == "PURPLE_RIGHT")
     {
         showLeftLights = false;
     }
@@ -129,8 +136,8 @@ void showCommand(Command command)
 int playerTurnState()
 {
     delay(50);
-    Command expectedCommand;
 
+    Command expectedCommand;
     if (currPlayerSequenceIdx == currNumOfCommands)
     {
         currPlayerSequenceIdx = 0;
@@ -138,43 +145,51 @@ int playerTurnState()
         return INIT_BOARD;
     }
 
+    int nextState = PLAYER_TURN;
     expectedCommand = gameCommands[currPlayerSequenceIdx];
-
     if (CircuitPlayground.leftButton())
     {
-        if (expectedCommand.type == "ORANGE_LEFT")
-        {
-            currPlayerSequenceIdx++;
-            return SENSOR_RESET;
-        }
-        else
-        {
-            return GAME_OVER;
-        }
+        nextState = checkNextPlayerState(expectedCommand, "PURPLE_LEFT");
     }
 
     else if (CircuitPlayground.rightButton())
     {
-        if (expectedCommand.type == "ORANGE_RIGHT")
-        {
-            currPlayerSequenceIdx++;
-            return SENSOR_RESET;
-        }
-        else
-        {
-            return GAME_OVER;
-        }
+        nextState = checkNextPlayerState(expectedCommand, "PURPLE_RIGHT");
     }
 
+    else if (CircuitPlayground.lightSensor() > flashLightThreshold)
+    {
+        nextState = checkNextPlayerState(expectedCommand, "YELLOW");
+    }
+
+    return nextState;
+}
+
+int checkNextPlayerState(Command expectedCommand, char *name)
+{
+    if (strcmp(expectedCommand.type, name) == 0)
+    {
+        currPlayerSequenceIdx++;
+        showCommand(expectedCommand);
+        return SENSOR_RESET;
+    }
     else
     {
-        return PLAYER_TURN;
+        return GAME_OVER;
     }
 }
 
 int sensorResetState()
 {
-    if (!CircuitPlayground.leftButton() && !CircuitPlayground.rightButton())
+    delay(500);
+
+    bool buttonsReleased = !CircuitPlayground.leftButton() && !CircuitPlayground.rightButton();
+
+    int lightSensorValue = CircuitPlayground.lightSensor();
+    bool lightIsInCorrectRange = lightSensorValue <= LightSensorValueOnInit + lightSensorCorrectRange &&
+                                 lightSensorValue >= LightSensorValueOnInit - lightSensorCorrectRange;
+
+    if (buttonsReleased && lightIsInCorrectRange)
     {
         return PLAYER_TURN;
     }
