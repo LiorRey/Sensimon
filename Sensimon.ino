@@ -45,6 +45,7 @@ void setup()
 {
     Serial.begin(9600);
     CircuitPlayground.begin();
+    randomSeed(analogRead(0));
 }
 
 void loop()
@@ -74,6 +75,7 @@ void loop()
 
 int initBoardState()
 {
+    Serial.print("INIT_BOARD");
     gameCommands[currNumOfCommands] = possibleCommands[random(4, 6)];
     currNumOfCommands++;
     // gameCommands[currNumOfCommands] = possibleCommands[random(0, numOfPossibleCommands)];
@@ -82,18 +84,16 @@ int initBoardState()
 
 int boardCommandsState()
 {
-    // Command testCommands[] =
-    //     {
-    //         {"ORANGE_LEFT", 700, 0xFF0000},
-    //         {"GREEN", 1000, 0x00FF00},
-    //         {"YELLOW", 1200, 0xFFFF00},
-    //     };
+
+    Serial.println("commands: ");
 
     for (int i = 0; i < currNumOfCommands; i++)
     {
-        // showCommand(testCommands[i]);
+        Serial.println(gameCommands[i].type);
         showCommand(gameCommands[i]);
     }
+
+    Serial.println();
 
     return PLAYER_TURN;
 }
@@ -128,6 +128,7 @@ void showCommand(Command command)
 
 int playerTurnState()
 {
+    delay(50);
     Command expectedCommand;
 
     if (currPlayerSequenceIdx == currNumOfCommands)
