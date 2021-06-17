@@ -1,3 +1,31 @@
+/*
+ * Lights Game Challenge: Sensimon!
+ * 
+ * We created Sensimon - a sensored version of one of the most iconic electronic games of the 70's and 80's, Simon!
+ * 
+ * To beat the Sensimon game, the player needs to remember the sounds and LED lights commands (which are described below),
+ * and repeat them by triggering the different sensors of the circuit in the correct order.
+ * It starts off at a nice steady pace, but the more you play, the more complicated the sequence of commands become,
+ * building suspense with each turn.
+ * 
+ * The Sensimon commands:
+ * - 10 Blue LEDs and 1000Hz tone : The player should trigger the temprature sensor (A9) with a cold object (like cold finger after touching ice).
+ * - 10 Green LEDs and 400Hz tone : The player should trigger the sound sensor (microphone) with a blowing.
+ * - 10 Yellow LEDs and 600Hz tone : The player should trigger the light sensor (A8) with a light-emitting object (like flashlight).
+ * - 5 Left Purple LEDs and 800Hz tone : The player should press the left button A (D4).
+ * - 5 Right Purple LEDs and 1200Hz tone : The player should press the right button B (D5).
+ *
+ * Video links (turn on the CAPTIONS of the videos!) :
+ * - IoT: Lights Game Challenge - Sensimon! | Part 1
+ *   https://www.youtube.com/watch?v=UU1b3NPOIrk
+ * - IoT: Lights Game Challenge - Sensimon! | Part 2
+ *   https://www.youtube.com/watch?v=WQ1iN_uXcUw
+ * 
+ * Created by :
+ * Tomer Ben-Gigi, 206198772
+ * Lior Reytan, 204326607
+ */
+
 #include <Adafruit_CircuitPlayground.h>
 #include <Wire.h>
 #include <SPI.h>
@@ -23,7 +51,7 @@ typedef struct
 #define temperatureSensorCorrectRange 4
 #define temperatureThresholdOffset 8
 
-// For Simon Animation state :)
+// For Sensimon Animation state :)
 #define NOTE_C4  262
 #define NOTE_E4  330
 #define NOTE_G4  392
@@ -32,7 +60,7 @@ typedef struct
 // ENUM
 enum StateEnum
 {
-    SIMON_ANIMATION,
+    SENSIMON_ANIMATION,
     INIT_BOARD,
     BOARD_COMMANDS,
     PLAYER_TURN,
@@ -40,7 +68,7 @@ enum StateEnum
 };
 
 // GLOBALS
-int state = SIMON_ANIMATION;
+int state = SENSIMON_ANIMATION;
 Command gameCommands[84] = {};
 Command possibleCommands[numOfPossibleCommands] =
 {
@@ -56,7 +84,7 @@ int currPlayerSequenceIdx = 0;
 int LightSensorValueOnInit, blowSensorValueOnInit, temperatureSensorValueOnInit;
 int temperatureThreshold;
 
-// For Simon Animation state :)
+// For Sensimon Animation state :)
 int NOTES[] = { NOTE_C4, NOTE_E4, NOTE_G4, NOTE_C5 };
 int led_indices[][2] {
   {0, 1},
@@ -98,12 +126,13 @@ void loop()
         state = sensorResetState();
         break;
 
-    case SIMON_ANIMATION:
-        state = simonAnimationState();
+    case SENSIMON_ANIMATION:
+        state = sensimonAnimationState();
         break;
     }
 }
 
+// Handles the addition of a new randomly-chosen command to the current game seqeunce
 int initBoardState()
 {
     Serial.print("INIT_BOARD: adding next command");
@@ -113,6 +142,7 @@ int initBoardState()
     return BOARD_COMMANDS;
 }
 
+// Displays the current expected sequence of commands for the player to repeat
 int boardCommandsState()
 {
     Serial.println("BOARD_COMMANDS: showing sequence");
@@ -125,6 +155,7 @@ int boardCommandsState()
     return PLAYER_TURN;
 }
 
+// Displays a single expected command for the player to repeat, with lights and sounds
 void showCommand(Command command)
 {
     bool showRightLights = true;
@@ -138,7 +169,7 @@ void showCommand(Command command)
         showLeftLights = false;
     }
 
-    // show lights
+    // Display lights
     for (int i = 0; i < 10; i++)
     {
         if (i <= 4 && showLeftLights || i > 4 && showRightLights)
@@ -147,12 +178,13 @@ void showCommand(Command command)
         }
     }
 
-    // make sound
+    // Play sound
     CircuitPlayground.playTone(command.soundFreq, commandShowDuration * 1000);
 
     CircuitPlayground.clearPixels();
 }
 
+// Handles the turn of the player and checks what sensor he/she has triggered with his/her current move
 int playerTurnState()
 {
     delay(50);
@@ -166,49 +198,54 @@ int playerTurnState()
     }
 
     int nextState = PLAYER_TURN;
+
     expectedCommand = gameCommands[currPlayerSequenceIdx];
     if (CircuitPlayground.leftButton())
     {
-        nextState = validateDetectedCommandType("PURPLE_LEFT", expectedCommand);
+        nextState = checkPlayerMove("PURPLE_LEFT", expectedCommand);
     }
 
     else if (CircuitPlayground.rightButton())
     {
-        nextState = validateDetectedCommandType("PURPLE_RIGHT", expectedCommand);
+        nextState = checkPlayerMove("PURPLE_RIGHT", expectedCommand);
     }
 
     else if (CircuitPlayground.lightSensor() > flashLightThreshold)
     {
-        nextState = validateDetectedCommandType("YELLOW", expectedCommand);
+        nextState = checkPlayerMove("YELLOW", expectedCommand);
     }
 
     else if (CircuitPlayground.mic.soundPressureLevel(10) > blowSensorThreshold)
     {
-        nextState = validateDetectedCommandType("GREEN", expectedCommand);
+        nextState = checkPlayerMove("GREEN", expectedCommand);
     }
 
     else if (CircuitPlayground.temperatureF() < temperatureThreshold)
     {
-        nextState = validateDetectedCommandType("BLUE", expectedCommand);
+        nextState = checkPlayerMove("BLUE", expectedCommand);
     }
 
     return nextState;
 }
 
-int validateDetectedCommandType(char *typeOfCommandDetected, Command expectedCommand)
+// Checks if the player made the correct move (detected command) relative to the expected command.
+// If so - the game sequence continues. Else - Sensimon's Game Over animation is displayed and a new game starts.
+int checkPlayerMove(char *typeOfCommandDetected, Command expectedCommand)
 {
     if (strcmp(expectedCommand.type, typeOfCommandDetected) == 0)
     {
         currPlayerSequenceIdx++;
         showCommand(expectedCommand);
+
         return SENSOR_RESET;
     }
     else
     {
-        return SIMON_ANIMATION;
+        return SENSIMON_ANIMATION;
     }
 }
 
+// Makes Sensimon wait for all the sensors to get back to a steady state/range
 int sensorResetState()
 {
     delay(100);
@@ -237,7 +274,8 @@ int sensorResetState()
     }
 }
 
-int simonAnimationState()
+// Displays that spectacular Sensimon animation and starts a new game
+int sensimonAnimationState()
 {
     CircuitPlayground.clearPixels();
     Serial.println("Condolences");
@@ -264,6 +302,7 @@ int simonAnimationState()
     return INIT_BOARD;
 }
 
+// Restarts the current session for a new game
 void resetGameParameters()
 {
     currNumOfCommands = 0;
